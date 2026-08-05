@@ -1,0 +1,48 @@
+name: ZF Saham Syariah Monitor
+
+on:
+  schedule:
+    - cron: "5 2 * * 1-5"
+    - cron: "*/30 2-9 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zf-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitor
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FORCE_SUMMARY: ${{ github.event.schedule == '5 2 * * 1-5' }}
+        run: python run_monitor.py
+
+      - name: Commit state & dashboard
+        run: |
+          git config user.name "zf-bot"
+          git config user.email "zf-bot@users.noreply.github.com"
+          git add state/alert_state.json docs/ zf_syariah_timing_rank.csv 2>/dev/null || true
+          if git diff --quiet --cached; then
+            echo "tidak ada perubahan"
+          else
+            git commit -m "update state & dashboard [skip ci]"
+            git push
+          fi
