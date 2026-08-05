@@ -1380,6 +1380,7 @@ def render_dashboard(df, config=None, macro=None, regime="neutral", generated_at
     _filter_badge = f'<span class="zfx-badge" style="background:rgba(180,131,43,.16);border-color:rgba(180,131,43,.4);color:#E7C86B">Filter \u2264 Rp{price_max:,.0f}</span>' if price_max else ""
     _rank_suffix = f" \u00b7 harga &lt; Rp{price_max:,.0f}" if price_max else ""
     _univ_sub = (f"dari {n_universe} (filter aktif)" if (price_max and n_universe) else "watchlist Bibit")
+    _dash = "\u2014"
     _now = _dt.datetime.now()
     if generated_at is None:
         generated_at = _now.strftime("%d %b %Y, %H:%M")
@@ -1448,7 +1449,7 @@ def render_dashboard(df, config=None, macro=None, regime="neutral", generated_at
     <div class="zfx-sub">Peringkat saham syariah watchlist Stockbit, dengan overlay kondisi pasar dunia &amp; Indonesia dan level beli/jual (closed-bar). Eksekusi manual di Bibit.</div>
     <div class="zfx-badges">
       <span class="zfx-badge zfx-fresh" data-ts="{_now_iso}">\u25cf Diperbarui {generated_at} WIB</span>
-      <span class="zfx-badge">Data harga per {data_asof or '\u2014'}</span>
+      <span class="zfx-badge">Data harga per {data_asof or _dash}</span>
       {_filter_badge}
       <span class="zfx-badge">POJK 8/2025</span>
     </div>
@@ -1491,7 +1492,7 @@ def render_dashboard(df, config=None, macro=None, regime="neutral", generated_at
       </ol>
     </div>
   </div>
-  <div class="zfx-foot"><span>ZF-Core Sharia Equity Desk \u00b7 25 saham \u00b7 Timing+Macro+Stockbit</span><span>Data harga per {data_asof or '\u2014'} \u00b7 dijalankan {generated_at} WIB</span></div>
+  <div class="zfx-foot"><span>ZF-Core Sharia Equity Desk \u00b7 25 saham \u00b7 Timing+Macro+Stockbit</span><span>Data harga per {data_asof or _dash} \u00b7 dijalankan {generated_at} WIB</span></div>
   <script>
   (function(){{
     var els=document.querySelectorAll('#zfx .zfx-fresh');
