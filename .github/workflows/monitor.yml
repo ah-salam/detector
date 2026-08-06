@@ -32,7 +32,7 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          FORCE_SUMMARY: ${{ github.event.schedule == '5 2 * * 1-5' }}
+          FORCE_SUMMARY: ${{ github.event.schedule == '7 2 * * 1-5' || github.event_name == 'workflow_dispatch' }}
         run: python run_monitor.py
 
       - name: Commit state & dashboard
