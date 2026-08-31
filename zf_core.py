@@ -9,15 +9,11 @@ import yfinance as yf
 # ======================================================================
 CONFIG = {
     "universe": [
-        # === Watchlist Stockbit MASTER (30 Jul 2026) ===
-        "AADI", "ADRO", "AKRA", "ANTM", "ASGR", "AUTO", "BSSR", "BYAN",
-        "CMRY", "CTRA", "DSNG", "ELSA", "ERAA", "HRTA", "INDF", "INKP",
-        "ITMG", "JPFA", "JSMR", "KLBF", "LSIP", "MAPA", "MBMA", "MDKA",
-        "MEDC", "MYOR", "PGAS", "PTBA", "SIDO", "TPIA",
-        # emas/perak tambahan (permintaan sebelumnya)
-        "ARCI", "BRMS", "PSAB",
-        # dari screenshot detail Bibit
-        "TINS",
+        # === Watchlist Stockbit MASTER (26 Agu 2026, 08:00) ===
+        "AADI", "ADRO", "AKRA", "ARCI", "ASGR", "BACH", "BRMS", "CTRA",
+        "DSNG", "ELSA", "ERAA", "HRTA", "JPFA", "JSMR", "KLBF", "KOTA",
+        "LSIP", "MAPA", "MBMA", "MDIA", "MDKA", "MEDC", "MYOR", "PGAS",
+        "PSAB", "PTBA", "RGAS", "SIDO", "SMMT", "TINS", "TPIA",
     ],
 
     # Bobot faktor fundamental (basis skor 0-100 sebelum tilt makro)
@@ -39,13 +35,13 @@ CONFIG = {
         "UNTR": ["coal", "gold"], "SIDO": ["pharma"], "MIKA": ["pharma"],
         "AMRT": ["consumer_defensive"], "ACES": ["consumer_defensive"],
         "PGEO": ["renewable"], "SMGR": ["cement"],
-        "HRTA": ["gold"], "ARCI": ["gold", "silver"],
-        "BRMS": ["gold", "silver"], "PSAB": ["gold"],
+        "HRTA": ["gold"], "PSAB": ["gold"], "ARCI": ["gold", "silver"], "BRMS": ["gold", "silver"],
         # dari watchlist Stockbit
         "ASGR": ["tech"], "AUTO": ["auto"], "BSSR": ["coal"], "CTRA": ["property"],
         "DSNG": ["cpo"], "ELSA": ["oil_gas"], "ERAA": ["distribution"],
         "ITMG": ["coal"], "JSMR": ["infra"], "MAPA": ["consumer_cyclical"],
         "MYOR": ["consumer_defensive"], "PTBA": ["coal"], "TINS": ["tin"],
+        "KOTA": ["property"], "MDIA": ["media"], "SMMT": ["coal"],
     },
 
     # Bias makro MANUAL untuk komoditas yg tak ada ticker gratis rapi.
@@ -91,6 +87,14 @@ CONFIG = {
     "account_size": 100000000,    # modal (Rp) utk position sizing
     "risk_per_trade_pct": 0.01,   # risiko per trade (1% dari modal)
     "highlight_min_konfluensi": 4,  # baris di-highlight jika Saran BELI & konfluensi >= ini
+    "scalp_min_value_idr": 10000000000,  # min likuiditas kandidat scalp (Rp/hari) = 10 M
+    "scalp_liq_full": 50000000000,       # likuiditas utk skor penuh = 50 M/hari
+    "scalp_score_min": 60,               # ambang kirim Telegram
+    "scalp_top_n": 8,
+    "ticker_suffix": ".JK",
+    "gh_owner": "ah-salam",       # utk tombol Refresh di dashboard
+    "gh_repo": "detector",
+    "gh_workflow": "monitor.yml",
     "show_guide": True,    # panel "Cara Pakai" di dashboard
     "show_charts": True,   # grafik komoditas realtime (TradingView) di dashboard
     "top_n": 35,
@@ -1373,6 +1377,43 @@ def _alerts_panel(alerts):
         items += f'<div class="zfx-alert zfx-al-{cls}"><span class="ad">{dot}</span>{a["msg"]}</div>'
     return f'<div class="zfx-alertbox">{items}</div>'
 
+def _refresh_button(config=None):
+    config = config or CONFIG
+    owner = config.get("gh_owner", ""); repo = config.get("gh_repo", ""); wf = config.get("gh_workflow", "monitor.yml")
+    if not (owner and repo):
+        return ""
+    css = ("<style>"
+        "#zfx .zfx-refresh{position:fixed;bottom:18px;right:18px;z-index:60;background:#0C7A5B;color:#fff;border:none;"
+        "border-radius:24px;padding:12px 18px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;"
+        "box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer}"
+        "#zfx .zfx-refresh:active{transform:scale(.96)}#zfx .zfx-refresh[disabled]{opacity:.6}"
+        "#zfx .zfx-refresh-msg{position:fixed;bottom:66px;right:18px;z-index:60;max-width:300px;background:#10201B;"
+        "color:#EDECE3;font-size:12px;line-height:1.5;padding:9px 13px;border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,.28)}"
+        "#zfx .zfx-refresh-msg:empty{display:none}#zfx .zfx-refresh-msg a{color:#7FCBB2}</style>")
+    btn = ('<button id="zf-refresh" class="zfx-refresh" onclick="zfRefresh()">\u27f3 Refresh data</button>'
+        '<div id="zf-refresh-msg" class="zfx-refresh-msg"></div>')
+    js = ("<script>(function(){"
+        "var O='__O__',R='__R__',W='__W__';"
+        "var m=function(){return document.getElementById('zf-refresh-msg');};"
+        "window.zfResetToken=function(){localStorage.removeItem('zf_gh_token');m().innerHTML='Token dihapus. Klik Refresh untuk token baru.';};"
+        "window.zfRefresh=function(){"
+        "var t=localStorage.getItem('zf_gh_token');"
+        "if(!t){t=prompt('Tempel GitHub token (fine-grained, izin Actions: Read and write). Disimpan HANYA di perangkat ini:');"
+        "if(!t){return;}t=t.trim();localStorage.setItem('zf_gh_token',t);}"
+        "var b=document.getElementById('zf-refresh');b.disabled=true;m().textContent='Menjalankan bot di GitHub...';"
+        "fetch('https://api.github.com/repos/'+O+'/'+R+'/actions/workflows/'+W+'/dispatches',{method:'POST',"
+        "headers:{'Authorization':'Bearer '+t,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},"
+        "body:JSON.stringify({ref:'main'})}).then(function(r){b.disabled=false;"
+        "if(r.status===204){var s=140;m().textContent='\u2713 Bot dijalankan. Reload otomatis ~'+s+' detik...';"
+        "var iv=setInterval(function(){s-=5;if(s<=0){clearInterval(iv);location.reload();}else{m().textContent='\u2713 Dijalankan. Reload dalam '+s+' detik (bot+Pages sedang proses)...';}},5000);}"
+        "else if(r.status===401||r.status===403){localStorage.removeItem('zf_gh_token');"
+        "m().innerHTML='\u2717 Token salah/kurang izin. Klik Refresh lagi untuk token baru.';}"
+        "else{r.text().then(function(x){m().innerHTML='\u2717 Gagal ('+r.status+'). <a href=\"https://github.com/'+O+'/'+R+'/actions\" target=\"_blank\">Jalankan manual</a>.';});}"
+        "}).catch(function(e){b.disabled=false;m().innerHTML='\u2717 Tak bisa memanggil GitHub (CORS/jaringan). <a href=\"https://github.com/'+O+'/'+R+'/actions\" target=\"_blank\">Jalankan manual</a>.';});"
+        "};})();</script>")
+    js = js.replace("__O__", owner).replace("__R__", repo).replace("__W__", wf)
+    return css + btn + js
+
 def render_dashboard(df, config=None, macro=None, regime="neutral", generated_at=None, alerts=None, data_asof=None, price_max=None, n_universe=None):
     config = config or CONFIG
     macro = macro or {}
@@ -1439,10 +1480,12 @@ def render_dashboard(df, config=None, macro=None, regime="neutral", generated_at
     _guide_html = _guide_section(config)
     _charts_html = _charts_section(config)
     _news_html = _news_section()
+    _refresh_html = _refresh_button(config)
 
     html = f"""
 <div id="zfx">
 {_CSS}
+{_refresh_html}
   <div class="zfx-head">
     <div class="zfx-brand">ZF-Core \u00b7 Sharia Equity Desk \u00b7 Timing + Macro</div>
     <h1>Rekomendasi &amp; Timing Saham Syariah</h1>
@@ -1676,5 +1719,169 @@ def render_buyzone(bz, macro=None, regime="neutral", generated_at=None):
     </ol></div>
   </div>
   <div class="zfx-foot"><span>ZF-Core \u00b7 Screener Area Beli</span><span>Data: Yahoo Finance (IDX) \u00b7 {generated_at}</span></div>
+</div>
+"""
+
+# ===== sec_scalp =====
+# ======================================================================
+# ZF SCALP SCANNER — saring saham syariah PALING LAYAK di-scalp hari ini.
+# Ini SCANNER KANDIDAT (likuiditas + volatilitas + volume), BUKAN sinyal
+# entry presisi. Data yfinance IDX tertunda ~15 mnt → konfirmasi chart Bibit.
+# ======================================================================
+import datetime as _dts
+
+def _scalp_metrics(ticker):
+    """Ambil daily(3bln)+intraday(5m) -> metrik scalping. None bila data kurang."""
+    try:
+        tk = yf.Ticker(ticker)
+        d = tk.history(period="3mo", interval="1d", auto_adjust=False)
+        if d is None or d.empty or len(d) < 20:
+            return None
+        close = d["Close"].dropna(); high = d["High"]; low = d["Low"]; vol = d["Volume"]
+        last = float(close.iloc[-1])
+        if not last or last <= 0:
+            return None
+        tr = pd.concat([(high - low), (high - close.shift()).abs(), (low - close.shift()).abs()], axis=1).max(axis=1)
+        atr = float(tr.rolling(14).mean().iloc[-1])
+        atr_pct = atr / last * 100.0
+        rng_pct = float(((high - low) / close).tail(10).mean() * 100.0)
+        vavg = float(vol.tail(20).mean()); vtoday = float(vol.iloc[-1])
+        vol_surge = (vtoday / vavg) if vavg else None
+        avg_value = float((close.tail(20) * vol.tail(20)).mean())
+        # VWAP intraday (opsional; bisa kosong pra-bursa)
+        vwap = None; vs_vwap = "—"; cur = last
+        try:
+            it = tk.history(period="1d", interval="5m", auto_adjust=False)
+            if it is not None and not it.empty and it["Volume"].sum() > 0:
+                tp = (it["High"] + it["Low"] + it["Close"]) / 3.0
+                cvol = it["Volume"].cumsum()
+                vwap = float((tp * it["Volume"]).cumsum().iloc[-1] / cvol.iloc[-1])
+                cur = float(it["Close"].iloc[-1])
+                vs_vwap = "di atas" if cur >= vwap else "di bawah"
+        except Exception:
+            pass
+        return {"ticker": ticker, "last": cur, "atr_pct": atr_pct, "range_pct": rng_pct,
+                "vol_surge": vol_surge, "avg_value_idr": avg_value, "vwap": vwap, "vs_vwap": vs_vwap}
+    except Exception as e:
+        print(f"  !scalp {ticker}: {e}")
+        return None
+
+def _vol_sweetspot(atr_pct):
+    """Volatilitas ideal utk scalp ~1.5-4% (puncak 2.5%). Terlalu sepi/terlalu liar -> skor turun."""
+    if atr_pct is None: return 0.0
+    x = atr_pct
+    if x < 0.8:  return max(0.0, x / 0.8 * 35)
+    if x <= 4.0: return max(35.0, 100 - abs(x - 2.5) * 12)
+    if x <= 7.0: return max(25.0, 100 - (x - 4) * 18)
+    return max(0.0, 25 - (x - 7) * 6)
+
+def scalp_score(m, cfg=None):
+    cfg = cfg or CONFIG
+    liq = m.get("avg_value_idr") or 0.0
+    liq_s = min(100.0, liq / float(cfg.get("scalp_liq_full", 50e9)) * 100.0)   # 50 M/hari -> 100
+    vol_s = _vol_sweetspot(m.get("atr_pct"))
+    surge = m.get("vol_surge") or 0.0
+    surge_s = min(100.0, surge * 50.0)                                          # 2x -> 100
+    rng = m.get("range_pct") or 0.0
+    rng_s = min(100.0, rng / 3.0 * 100.0)                                       # 3% -> 100
+    return round(0.40 * liq_s + 0.30 * vol_s + 0.18 * surge_s + 0.12 * rng_s, 1)
+
+def scan_scalp(universe=None, cfg=None):
+    """Pindai universe -> DataFrame kandidat scalp (likuid + bergerak), urut skor."""
+    cfg = cfg or CONFIG
+    universe = universe or cfg["universe"]
+    minval = float(cfg.get("scalp_min_value_idr", 10e9))
+    rows = []
+    for t in universe:
+        m = _scalp_metrics(_jk(t, cfg))
+        if not m:
+            continue
+        if (m.get("avg_value_idr") or 0) < minval:       # gerbang likuiditas (wajib utk scalp)
+            continue
+        m["scalp_score"] = scalp_score(m, cfg)
+        m["ticker"] = t
+        rows.append(m)
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows).sort_values("scalp_score", ascending=False).reset_index(drop=True)
+    df.insert(0, "rank", df.index + 1)
+    return df
+
+def _jk(t, cfg):
+    suf = cfg.get("ticker_suffix", ".JK")
+    return t if t.endswith((".JK", ".SR")) else t + suf
+
+# ---------------------- Telegram ----------------------
+def format_scalp_telegram(df, cfg=None):
+    cfg = cfg or CONFIG
+    t = _dts.datetime.now().strftime("%d %b %Y %H:%M")
+    L = [f"<b>\U0001f3af ZF Scalp Scanner</b> \u2014 {t} WIB",
+         "Kandidat scalping syariah (likuid + bergerak):", ""]
+    for _, r in df.iterrows():
+        av = (r.get("avg_value_idr") or 0) / 1e9
+        surge = r.get("vol_surge"); srg = f"{surge:.1f}\u00d7" if surge else "\u2014"
+        atrp = r.get("atr_pct"); atrs = f"{atrp:.1f}%" if atrp else "\u2014"
+        vw = r.get("vs_vwap") or "\u2014"
+        L.append(f"{int(r['rank'])}. <b>{r['ticker']}</b> \u00b7 skor {r['scalp_score']:.0f}")
+        L.append(f"   Rp{r['last']:,.0f} \u00b7 ATR {atrs} \u00b7 vol {srg} \u00b7 VWAP: {vw}")
+        L.append(f"   likuiditas \u2248Rp{av:,.0f} M/hari")
+    L += ["", "<i>\u26a0\ufe0f Ini kandidat likuiditas/volatilitas, BUKAN sinyal entry. "
+              "Konfirmasi di chart real-time Bibit; data tertunda ~15 mnt. Bukan nasihat keuangan.</i>"]
+    return "\n".join(L)
+
+# ---------------------- HTML ringkas ----------------------
+def render_scalp(df, cfg=None):
+    cfg = cfg or CONFIG
+    now = _dts.datetime.now().strftime("%d %b %Y, %H:%M")
+    if df is None or len(df) == 0:
+        cards = ('<div class="bz-empty">Belum ada kandidat scalping yang lolos gerbang likuiditas saat ini. '
+                 'Coba lagi saat sesi bursa lebih ramai.</div>')
+    else:
+        cards = '<div class="bz-wrap">'
+        for _, r in df.iterrows():
+            sc = r["scalp_score"]
+            col = "#0C7A5B" if sc >= 75 else ("#128C74" if sc >= 60 else "#B4832B")
+            surge = r.get("vol_surge"); srg = f"{surge:.1f}\u00d7" if surge else "\u2014"
+            atrp = r.get("atr_pct"); atrs = f"{atrp:.1f}%" if atrp else "\u2014"
+            av = (r.get("avg_value_idr") or 0) / 1e9
+            vwap = r.get("vwap")
+            cards += (
+                '<div class="bz" style="border-left-color:%s">' % col +
+                '<div class="bz-top"><span class="bz-tk">%s</span>' % r["ticker"] +
+                '<span class="bz-px">Rp%s</span>' % (f"{r['last']:,.0f}") +
+                '<span class="bz-badge" style="background:%s">SCALP %.0f</span></div>' % (col, sc) +
+                '<div class="bz-grid">'
+                '<div class="bz-cell"><div class="l">ATR harian</div><div class="v">%s</div></div>' % atrs +
+                '<div class="bz-cell"><div class="l">Lonjakan vol</div><div class="v">%s</div></div>' % srg +
+                '<div class="bz-cell"><div class="l">vs VWAP</div><div class="v">%s</div></div>' % (r.get("vs_vwap", "\u2014")) +
+                '</div>'
+                '<div class="bz-cell" style="margin-bottom:9px"><div class="l">Likuiditas (nilai transaksi/hari)</div>'
+                '<div class="v" style="color:#0A5E47">\u2248Rp%s miliar %s</div></div>' % (f"{av:,.0f}", (f"\u00b7 VWAP Rp{vwap:,.0f}" if vwap else "")) +
+                '<div class="bz-sell">\u26a1 <b>Cara pakai:</b> ini kandidat paling likuid & bergerak untuk di-scalp. '
+                'Buka chart real-time (1m/5m) di Bibit, cari entry di sekitar VWAP/level, target kecil, '
+                'stop ketat. Skor tinggi = likuiditas & volatilitas lebih cocok \u2014 <b>bukan</b> aba-aba beli.</div>'
+                '</div>')
+        cards += '</div>'
+    n = 0 if df is None else len(df)
+    return f"""
+<div id="zfx">
+{_CSS}{_BZ_CSS}
+  <div class="zfx-head">
+    <div class="zfx-brand">ZF-Core \u00b7 Scalp Scanner</div>
+    <h1>\u26a1 Kandidat Scalping Saham Syariah</h1>
+    <div class="zfx-sub">{n} kandidat lolos gerbang likuiditas. Data tertunda ~15 menit \u2014 scanner kandidat, bukan sinyal entry.</div>
+    <div class="zfx-badges"><span class="zfx-badge zfx-fresh" data-ts="{_dts.datetime.now():%Y-%m-%dT%H:%M:%S}">\u25cf Diperbarui {now}</span></div>
+  </div>
+  <div class="zfx-body">
+    {cards}
+    <div class="zfx-eyebrow">Yang wajib diketahui</div>
+    <div class="zfx-notes"><h3>Batasan jujur</h3><ol>
+      <li>Ini <b>penyaring kandidat</b> (likuiditas + volatilitas + volume), <b>bukan</b> sinyal beli/jual menit-per-menit.</li>
+      <li>Data yfinance IDX <b>tertunda ~15 menit</b> \u2014 untuk scalping sungguhan kamu butuh chart & kuotasi real-time (mis. langganan di Bibit).</li>
+      <li>Likuiditas adalah syarat utama scalping (mudah masuk-keluar). Volatilitas ideal ~1,5\u20134% ATR harian.</li>
+      <li>Scalping berisiko tinggi & sering diperdebatkan secara syariah \u2014 pertimbangkan sendiri. Bukan nasihat keuangan.</li>
+    </ol></div>
+  </div>
+  <div class="zfx-foot"><span>ZF-Core \u00b7 Scalp Scanner</span><span>Data: Yahoo Finance (IDX, delayed) \u00b7 {now}</span></div>
 </div>
 """
