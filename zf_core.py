@@ -84,7 +84,7 @@ CONFIG = {
     "max_price": None,   # filter harga dinonaktifkan (None = tampilkan semua)
 
     "hanya_syariah_ok": False,
-    "gemini_model": "gemini-2.0-flash",  # ganti bila perlu (model Gemini yg tersedia di akunmu)
+    "gemini_models": ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-flash-latest"],  # dicoba berurutan; Flash-Lite = kuota gratis terbesar
     "sector_neutral": True,       # skoring z-score per sektor (apple-to-apple)
     "account_size": 100000000,    # modal (Rp) utk position sizing
     "risk_per_trade_pct": 0.01,   # risiko per trade (1% dari modal)
@@ -842,7 +842,12 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
     api_key = api_key or _os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None, None
-    model = model or (CONFIG.get("gemini_model") if "CONFIG" in globals() else None) or "gemini-2.0-flash"
+    if model:
+        models = [model]
+    else:
+        models = (CONFIG.get("gemini_models") if "CONFIG" in globals() else None) or \
+                 ([CONFIG.get("gemini_model")] if ("CONFIG" in globals() and CONFIG.get("gemini_model")) else None) or \
+                 ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-flash-latest"]
     news_txt = ""
     for k, items in news.items():
         if items:
@@ -858,40 +863,42 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
         f"TEMA per ticker: {_json.dumps(theme_map, ensure_ascii=False)}\n"
         f"HEADLINE:{news_txt}\n"
     )
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     body = _json.dumps({"contents": [{"parts": [{"text": prompt}]}],
                         "generationConfig": {"temperature": 0.3, "response_mime_type": "application/json"}}).encode()
     import time as _time, random as _random, urllib.error as _uerr
     last_err = ""
-    for attempt in range(3):                        # retry 429/503 dgn backoff
-        try:
-            req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=90) as r:
-                resp = _json.loads(r.read())
-            txt = resp["candidates"][0]["content"]["parts"][0]["text"]
-            data = _json.loads(txt)
-            nar = data.get("narrative", {})
-            narrative = [("Global & The Fed", nar.get("global_fed", "")),
-                         ("Geopolitik & energi", nar.get("geopolitik", "")),
-                         ("Indonesia & IHSG", nar.get("indonesia", "")),
-                         ("Komoditas \u00b7 100 hari", nar.get("komoditas", ""))]
-            outlook = {}
-            for tk, o in (data.get("outlook", {}) or {}).items():
-                if o and o.get("char"):
-                    outlook[str(tk).upper()] = (o["char"], o.get("note", ""))
-            if any(t for _, t in narrative) or outlook:
-                return narrative, outlook
-            return None, None
-        except _uerr.HTTPError as e:
-            last_err = f"HTTP {e.code} ({'kuota/rate-limit' if e.code == 429 else e.reason})"
-            if e.code in (429, 503) and attempt < 2:
-                wait = (2 ** attempt) * 6 + _random.uniform(0, 3)   # ~6-9s, ~15-18s
-                print(f"  (Gemini {e.code}, tunggu {wait:.0f}s lalu coba lagi...)")
-                _time.sleep(wait); continue
-            break
-        except Exception as e:
-            last_err = str(e); break
-    print("  (Gemini gagal, pakai snapshot):", last_err)
+    for mdl in models:                              # coba tiap model sampai ada yg berhasil
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{mdl}:generateContent?key={api_key}"
+        for attempt in range(3):                    # retry 429/503 dgn backoff
+            try:
+                req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=90) as r:
+                    resp = _json.loads(r.read())
+                txt = resp["candidates"][0]["content"]["parts"][0]["text"]
+                data = _json.loads(txt)
+                nar = data.get("narrative", {})
+                narrative = [("Global & The Fed", nar.get("global_fed", "")),
+                             ("Geopolitik & energi", nar.get("geopolitik", "")),
+                             ("Indonesia & IHSG", nar.get("indonesia", "")),
+                             ("Komoditas \u00b7 100 hari", nar.get("komoditas", ""))]
+                outlook = {}
+                for tk, o in (data.get("outlook", {}) or {}).items():
+                    if o and o.get("char"):
+                        outlook[str(tk).upper()] = (o["char"], o.get("note", ""))
+                if any(t for _, t in narrative) or outlook:
+                    print(f"  (Gemini OK via {mdl})")
+                    return narrative, outlook
+                return None, None
+            except _uerr.HTTPError as e:
+                last_err = f"HTTP {e.code} @ {mdl}"
+                if e.code in (429, 503) and attempt < 2:
+                    wait = (2 ** attempt) * 5 + _random.uniform(0, 2)
+                    print(f"  (Gemini {e.code} @ {mdl}, tunggu {wait:.0f}s...)")
+                    _time.sleep(wait); continue
+                break                               # 4xx / habis retry -> model berikutnya
+            except Exception as e:
+                last_err = str(e); break
+    print("  (Gemini gagal semua model, pakai snapshot):", last_err)
     return None, None
 
 def build_live_news(universe, theme_map):
