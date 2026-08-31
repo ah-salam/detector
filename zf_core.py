@@ -9,11 +9,12 @@ import yfinance as yf
 # ======================================================================
 CONFIG = {
     "universe": [
-        # === Watchlist Stockbit MASTER (26 Agu 2026, 08:00) ===
-        "AADI", "ADRO", "AKRA", "ARCI", "ASGR", "BACH", "BRMS", "CTRA",
-        "DSNG", "ELSA", "ERAA", "HRTA", "JPFA", "JSMR", "KLBF", "KOTA",
-        "LSIP", "MAPA", "MBMA", "MDIA", "MDKA", "MEDC", "MYOR", "PGAS",
-        "PSAB", "PTBA", "RGAS", "SIDO", "SMMT", "TINS", "TPIA",
+        # === Watchlist Stockbit MASTER (26 Agu 2026) + 8 tambahan ===
+        "AADI", "ADMR", "ADRO", "AKRA", "ARCI", "ASGR", "BACH", "BOLT",
+        "BRMS", "BUMI", "CTRA", "DSNG", "ELSA", "ERAA", "HRTA", "INDS",
+        "JPFA", "JSMR", "KLBF", "KOCI", "KOTA", "LSIP", "MAPA", "MBMA",
+        "MDIA", "MDKA", "MEDC", "MYOR", "PGAS", "PSAB", "PTBA", "RGAS",
+        "SIDO", "SMDR", "SMMT", "TINS", "TPIA", "VISI", "VKTR",
     ],
 
     # Bobot faktor fundamental (basis skor 0-100 sebelum tilt makro)
@@ -36,6 +37,7 @@ CONFIG = {
         "AMRT": ["consumer_defensive"], "ACES": ["consumer_defensive"],
         "PGEO": ["renewable"], "SMGR": ["cement"],
         "HRTA": ["gold"], "PSAB": ["gold"], "ARCI": ["gold", "silver"], "BRMS": ["gold", "silver"],
+        "ADMR": ["coal"], "BUMI": ["coal"], "BOLT": ["auto"], "INDS": ["auto"],
         # dari watchlist Stockbit
         "ASGR": ["tech"], "AUTO": ["auto"], "BSSR": ["coal"], "CTRA": ["property"],
         "DSNG": ["cpo"], "ELSA": ["oil_gas"], "ERAA": ["distribution"],
@@ -735,73 +737,68 @@ def send_telegram(text, token, chat_id, parse_mode=None):
 # Disintesis dari berita valid yg beredar. Bukan ramalan pasti.
 # "char": bullish / netral / hati-hati / campuran ; kosong = tak ada dasar berita.
 # ======================================================================
-NEWS_ASOF = "31 Jul 2026"
+NEWS_ASOF = "31 Agu 2026"
 
 NEWS_NARRATIVE = [
  ("Global & The Fed",
-  "The Fed menahan bunga di <b>3,50\u20133,75%</b> (30 Jul), namun 9-3 dengan <b>tiga pembelot minta NAIK</b> \u2014 sikap hawkish; "
-  "pasar memperkirakan 1\u20132 kenaikan hingga akhir 2026, dipicu inflasi energi & tarif. "
-  "Implikasi 100 hari: dolar cenderung kuat, biaya modal mahal (<i>higher-for-longer</i>) \u2192 menekan valuasi tinggi, properti, "
-  "& emiten berutang besar; menguntungkan saham value, dividen tinggi, dan eksportir komoditas (rupiah lemah bantu margin)."),
+  "Tak ada rapat FOMC di Agustus; terakhir bunga ditahan <b>3,50–3,75%</b> (28–29 Jul, 9-3, tiga pembelot minta NAIK). "
+  "Ketua Fed baru <b>Kevin Warsh</b> di Jackson Hole (28 Agu) condong menaikkan bunga, tetapi data tenaga kerja Juli lemah "
+  "membuat keputusan <b>16 September dua-arah</b>. Hawkish menekan tapi kenaikan belum pasti. "
+  "Implikasi: dolar cenderung kuat, <i>higher-for-longer</i> → menekan valuasi tinggi & emiten berutang; "
+  "menguntungkan value, dividen tinggi, eksportir komoditas."),
  ("Geopolitik & energi",
-  "Timur Tengah (AS\u2013Iran): gencatan Juni sempat membuka Selat Hormuz & menurunkan minyak ke ~$70, tetapi <b>eskalasi akhir Juli</b> "
-  "mendorong Brent ke ~$88 lagi. Proyeksi 100 hari bias <b>turun ($70\u201382)</b> karena OPEC+ menambah pasokan \u2014 kecuali eskalasi berulang. "
-  "Emas tetap dapat <i>safe-haven bid</i>; gangguan LNG di Hormuz menopang batu bara (permintaan Jepang/Korea)."),
+  "AS–Iran kembali memanas: AS menyerang posisi Iran dekat <b>Selat Hormuz (30 Agu)</b> → premium minyak volatil. "
+  "Brent sempat >$100 saat eskalasi, tapi surplus struktural 2026 menekan bias <b>turun</b> ($60–67 kuartal ini) kecuali Hormuz memburuk. "
+  "<b>Emas menguat >$4.400</b> (safe-haven + ketidakpastian Fed). Bank Dunia: harga energi 2026 bisa +24%."),
  ("Indonesia & IHSG",
-  "IHSG babak belur di H1 (\u221231% YtD, asing keluar ~Rp72 T, valuasi ~<b>9x PE</b> \u2014 sangat terkompresi). Muncul sinyal <b>bottoming</b>: "
-  "broker (CGSI) menargetkan ~<b>7.000</b> akhir 2026 (~+12%) bila rupiah stabil (BI lebih agresif). "
-  "Risiko: Fed hawkish, rupiah (Rp16.800\u201317.500), harga minyak (beban subsidi), & evaluasi <b>MSCI November</b> (bobot RI turun ke ~0,4%). "
-  "Pergerakan volatil & tidak linier; defensif + dividen tinggi relatif aman."),
- ("Komoditas \u00b7 100 hari",
-  "<b>Emas</b>: konsolidasi ~$4.100, bias naik (bank sentral beli). <b>Perak</b>: defisit struktural, diperkirakan outperform emas (volatil). "
-  "<b>Tembaga</b>: struktural bullish (transisi energi + AI). <b>Nikel</b>: range $16\u201318rb, bias membaik (disiplin pasokan Indonesia). "
-  "<b>Batu bara</b>: ~$125\u2013135, dividen tinggi menarik. <b>CPO</b>: firm RM4.400\u20134.700 (mandat B50 + risiko El Ni\u00f1o)."),
+  "IHSG <b>pulih kuat</b>: +4,52% sepanjang Agustus, ditutup ~<b>6.525</b> (31 Agu) dari titik terendah Juni 5.317 — uptrend. "
+  "Prospek September <b>netral-ke-bullish</b>; resistance 6.537→6.551, target 6.822; support 6.454/6.230. "
+  "Risiko: Fed hawkish, <b>rebalancing MSCI efektif 1 Sep</b> (risiko outflow), jual asing (~Rp450 M), musiman September lemah, "
+  "& ketegangan sosial-politik domestik. Inflasi Agu ~2,86%, PMI ~50,5."),
+ ("Komoditas · 100 hari",
+  "<b>Emas</b>: kuat >$4.400 (safe-haven). <b>Perak</b>: reli konstruktif berlanjut. <b>Tembaga</b>: firm (~$9.300–9.800/t), struktural bullish. "
+  "<b>Nikel</b>: lemah jangka pendek (~$14–16rb) lalu pulih. <b>Batu bara</b>: sempat −10% (Juli), ditopang LNG/geopolitik — volatil. "
+  "<b>CPO</b>: firm RM4.800–4.900 (El Niño + B50 penuh 1 Okt), tertahan ekspor lemah. <b>Minyak</b>: volatil, bias turun kecuali Hormuz."),
 ]
 
-# Outlook per saham (hanya yg punya dasar berita/tema; sisanya kosong)
+# Outlook per saham (hanya yg punya dasar berita/tema; sisanya kosong) — per 31 Agu 2026
 OUTLOOK = {
- # Batu bara
- "AADI": ("netral", "Batu bara $125\u2013135 + dividen ~10%; topangan LNG Hormuz, tertahan permintaan China."),
- "ADRO": ("netral", "Coal + top pick Mirae S2-2026; dividen ~10%; volatil ikut geopolitik energi."),
- "BSSR": ("netral", "Coal, dividen tinggi; likuiditas tipis \u2014 waspada eksekusi."),
- "ITMG": ("netral", "Coal, dividen tinggi; margin terbantu rupiah lemah."),
+ "AADI": ("netral", "Batu bara volatil (sempat −10% Juli, ditopang LNG/geopolitik); dividen tinggi menarik."),
+ "ADRO": ("netral", "Coal + dividen ~10%; ikut geopolitik energi; volatil."),
+ "ADMR": ("netral", "Adaro Minerals (coking coal); ikut siklus batu bara & permintaan baja."),
+ "BUMI": ("hati-hati", "Bumi Resources (coal); utang historis besar, spekulatif; ikut harga batu bara."),
  "PTBA": ("netral", "Coal domestik + dividen; permintaan PLN relatif stabil."),
- # Logam mulia / metals
- "ANTM": ("campuran", "Emas (konsolidasi, bias naik) + nikel (range, bias membaik) + perak; net konstruktif."),
- "MDKA": ("bullish", "Tembaga (struktural bullish: transisi energi+AI) + emas; volatil, PER TTM negatif (rugi)."),
- "HRTA": ("netral", "Emas perhiasan; ikut harga emas + permintaan konsumen."),
- "ARCI": ("bullish", "Emas + PERAK (defisit struktural, outperform emas); spekulatif/volatil."),
- "BRMS": ("campuran", "Emas+perak, prospek besar tapi spekulatif/fase pengembangan \u2014 hati-hati risiko."),
- "PSAB": ("hati-hati", "Emas; likuiditas tipis, spekulatif."),
- "TINS": ("netral", "Timah; margin kuat (24,5%), rating analis Beli; ikut harga timah global."),
- # Nikel
- "MBMA": ("netral", "Nikel battery-grade; bias membaik (disiplin pasokan+Hormuz), tapi glut NPI membatasi; valuasi mahal (PER 52)."),
- # Migas & petrokimia
- "MEDC": ("campuran", "Migas; premium jangka pendek (eskalasi Juli) tapi forecast bias turun $70\u201382 akhir tahun (OPEC+)."),
- "PGAS": ("netral", "Gas; relatif stabil + dividen; mengikuti harga energi."),
+ "MDKA": ("bullish", "Tembaga firm (~$9.300) + emas (>$4.400); konstruktif, tapi masih rugi."),
+ "HRTA": ("bullish", "Emas perhiasan; emas menguat >$4.400 menopang; ikut permintaan konsumen."),
+ "ARCI": ("bullish", "Emas menguat + perak reli; spekulatif/volatil."),
+ "BRMS": ("campuran", "Emas+perak menguat, tapi spekulatif/fase pengembangan — hati-hati risiko."),
+ "PSAB": ("hati-hati", "Emas naik menopang, tapi likuiditas tipis & spekulatif."),
+ "TINS": ("netral", "Timah; ikut harga timah global; rating analis Beli."),
+ "MBMA": ("hati-hati", "Nikel lemah jangka pendek (~$14–16rb) sebelum pulih; valuasi mahal (PER 58)."),
+ "MEDC": ("campuran", "Migas; premium saat eskalasi Hormuz tapi surplus struktural menekan ($60–67)."),
+ "PGAS": ("netral", "Gas + dividen (yield ~8%); relatif stabil; ikut harga energi."),
  "ELSA": ("campuran", "Jasa migas; ikut belanja modal energi & harga minyak (volatil)."),
- "TPIA": ("campuran", "Petrokimia; PER TTM 98 (mahal). Margin membaik bila minyak turun, tapi permintaan lemah."),
- # CPO
- "LSIP": ("netral", "CPO firm RM4.400\u20134.700 (mandat B50 + El Ni\u00f1o); analis Overweight sawit."),
- "DSNG": ("netral", "CPO; ditopang mandat B50 + risiko El Ni\u00f1o."),
- # Konsumsi & farmasi (defensif)
- "INDF": ("netral", "Konsumsi defensif; tahan saat risk-off; rating Beli (target +21%)."),
- "CMRY": ("netral", "Konsumsi (dairy); top pick Mirae; premium defensif saat risk-off."),
- "MYOR": ("netral", "Konsumsi; defensif; likuiditas tipis di sesi tsb."),
- "JPFA": ("netral", "Unggas + top pick Mirae; rupiah lemah = beban pakan impor (jagung/soybean)."),
+ "TPIA": ("hati-hati", "Petrokimia; PER TTM ~90 (mahal). Minyak turun bantu feedstock, tapi permintaan lemah."),
+ "LSIP": ("netral", "CPO firm RM4.800–4.900 (El Niño + B50 penuh 1 Okt); NPM tinggi, valuasi murah."),
+ "DSNG": ("netral", "CPO; ditopang B50 + risiko El Niño."),
+ "BOLT": ("netral", "Komponen otomotif (fastener) + dividen; sensitif penjualan kendaraan & suku bunga."),
+ "INDS": ("netral", "Komponen otomotif (per); DER rendah; sensitif siklus otomotif."),
+ "VKTR": ("campuran", "Kendaraan listrik; rugi (PER negatif) tapi pick teknikal jangka pendek — spekulatif/momentum."),
+ "MYOR": ("netral", "Konsumsi; defensif."),
+ "JPFA": ("netral", "Unggas; rupiah lemah = beban pakan impor (jagung/soybean)."),
  "KLBF": ("netral", "Farmasi defensif; tahan siklus."),
  "SIDO": ("netral", "Herbal, ROE tinggi + dividen ~10%; ekspor; defensif."),
- # Distribusi / ritel / otomotif
  "AKRA": ("netral", "Distribusi BBM + kawasan industri (JIIPE); relatif resilient."),
  "ERAA": ("netral", "Ritel elektronik; sensitif daya beli & suku bunga tinggi."),
  "MAPA": ("netral", "Ritel sport; sensitif daya beli."),
- "AUTO": ("netral", "Komponen otomotif; DER sangat rendah + dividen; sensitif penjualan kendaraan."),
- # Properti / infrastruktur (tertekan bunga tinggi)
- "CTRA": ("hati-hati", "Properti; suku bunga tinggi (higher-for-longer) menekan KPR & permintaan."),
+ "SMDR": ("netral", "Pelayaran/logistik; ikut tarif angkut & perdagangan global."),
+ "CTRA": ("hati-hati", "Properti; suku bunga tinggi menekan KPR & permintaan."),
  "JSMR": ("hati-hati", "Tol; utang tinggi + suku bunga tinggi = beban bunga naik."),
- # Kertas
- "INKP": ("netral", "Kertas/pulp + top pick Mirae; siklikal global; rating Beli (target +66%)."),
- # ASGR: tak ada dasar berita spesifik -> kosong (tidak ada)
+ "KOTA": ("hati-hati", "Properti kecil; spekulatif & sensitif suku bunga."),
+ "MDIA": ("hati-hati", "Media; rugi (NPM negatif, PER tak bermakna) — risiko tinggi, cek syariah."),
+ "VISI": ("hati-hati", "Media; rugi (PER negatif); spekulatif."),
+ "RGAS": ("netral", "Utang sangat rendah (DER 0,03) + dividen kecil; sangat likuid/aktif."),
+ # BACH, KOCI, ASGR: tak ada dasar berita spesifik -> kosong (tidak ada)
 }
 
 # ===== sec_news_live =====
@@ -900,7 +897,7 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
 def build_live_news(universe, theme_map):
     """Cari berita + minta Gemini. Set global NEWS_NARRATIVE/OUTLOOK/NEWS_ASOF. Return True bila LIVE."""
     global NEWS_NARRATIVE, OUTLOOK, NEWS_ASOF
-    _static_asof = "31 Jul 2026"
+    _static_asof = "31 Agu 2026"
     news = gather_news()
     nar, out = gemini_outlook(news, universe, theme_map)
     today = _dt2.date.today().strftime("%d %b %Y")
@@ -1535,7 +1532,7 @@ def render_dashboard(df, config=None, macro=None, regime="neutral", generated_at
       </ol>
     </div>
   </div>
-  <div class="zfx-foot"><span>ZF-Core Sharia Equity Desk \u00b7 25 saham \u00b7 Timing+Macro+Stockbit</span><span>Data harga per {data_asof or _dash} \u00b7 dijalankan {generated_at} WIB</span></div>
+  <div class="zfx-foot"><span>ZF-Core Sharia Equity Desk \u00b7 {len(df)} saham \u00b7 Timing+Macro+Stockbit</span><span>Data harga per {data_asof or _dash} \u00b7 dijalankan {generated_at} WIB</span></div>
   <script>
   (function(){{
     var els=document.querySelectorAll('#zfx .zfx-fresh');
