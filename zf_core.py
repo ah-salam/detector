@@ -9,12 +9,11 @@ import yfinance as yf
 # ======================================================================
 CONFIG = {
     "universe": [
-        # === Watchlist Stockbit MASTER (26 Agu 2026) + 8 tambahan ===
-        "AADI", "ADMR", "ADRO", "AKRA", "ARCI", "ASGR", "BACH", "BOLT",
-        "BRMS", "BUMI", "CTRA", "DSNG", "ELSA", "ERAA", "HRTA", "INDS",
-        "JPFA", "JSMR", "KLBF", "KOCI", "KOTA", "LSIP", "MAPA", "MBMA",
-        "MDIA", "MDKA", "MEDC", "MYOR", "PGAS", "PSAB", "PTBA", "RGAS",
-        "SIDO", "SMDR", "SMMT", "TINS", "TPIA", "VISI", "VKTR",
+        # === Watchlist Bibit MASTER (28 Agu 2026) — 32 saham syariah ===
+        "ADMR", "ADRO", "AKRA", "ANTM", "ARCI", "BACH", "BOLT", "BRMS",
+        "BULL", "BUMI", "CTRA", "DMAS", "DRMA", "DSSA", "ELSA", "HRTA",
+        "IATA", "JPFA", "KOTA", "LSIP", "MAPA", "MBMA", "MDIA", "MEDC",
+        "PGAS", "PSAB", "SIDO", "SMDR", "SMMT", "TPIA", "VISI", "VKTR",
     ],
 
     # Bobot faktor fundamental (basis skor 0-100 sebelum tilt makro)
@@ -38,6 +37,7 @@ CONFIG = {
         "PGEO": ["renewable"], "SMGR": ["cement"],
         "HRTA": ["gold"], "PSAB": ["gold"], "ARCI": ["gold", "silver"], "BRMS": ["gold", "silver"],
         "ADMR": ["coal"], "BUMI": ["coal"], "BOLT": ["auto"], "INDS": ["auto"],
+        "ANTM": ["gold", "nickel"], "DMAS": ["property"], "DRMA": ["auto"], "DSSA": ["coal"], "IATA": ["coal"],
         # dari watchlist Stockbit
         "ASGR": ["tech"], "AUTO": ["auto"], "BSSR": ["coal"], "CTRA": ["property"],
         "DSNG": ["cpo"], "ELSA": ["oil_gas"], "ERAA": ["distribution"],
@@ -798,6 +798,12 @@ OUTLOOK = {
  "MDIA": ("hati-hati", "Media; rugi (NPM negatif, PER tak bermakna) — risiko tinggi, cek syariah."),
  "VISI": ("hati-hati", "Media; rugi (PER negatif); spekulatif."),
  "RGAS": ("netral", "Utang sangat rendah (DER 0,03) + dividen kecil; sangat likuid/aktif."),
+ "ANTM": ("bullish", "Emas (>$4.400) + nikel; Logam Mulia; net konstruktif ikut logam."),
+ "DMAS": ("netral", "Kawasan industri; ikut investasi manufaktur/FDI + dividen."),
+ "DRMA": ("netral", "Komponen otomotif; rating Beli; sensitif penjualan kendaraan & suku bunga."),
+ "DSSA": ("netral", "Energi (batu bara Sinar Mas) + infrastruktur digital; volatil, valuasi tinggi."),
+ "IATA": ("hati-hati", "Energi/batu bara (Karya Pacific); spekulatif & volatil."),
+ "BULL": ("netral", "Tanker/pelayaran migas; ikut tarif angkut & harga energi."),
  # BACH, KOCI, ASGR: tak ada dasar berita spesifik -> kosong (tidak ada)
 }
 
@@ -828,13 +834,13 @@ def fetch_news_rss(query, n=5, lang="id", country="ID"):
            + f"&hl={lang}&gl={country}&ceid={country}:{lang}")
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with urllib.request.urlopen(req, timeout=8) as r:
             root = _ET.fromstring(r.read())
         return [it.findtext("title") for it in root.findall(".//item")[:n] if it.findtext("title")]
     except Exception:
         return []
 
-def gather_news(per=3):
+def gather_news(per=2):
     return {k: fetch_news_rss(q, per) for k, q in NEWS_QUERIES.items()}
 
 def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
@@ -851,16 +857,15 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
     news_txt = ""
     for k, items in news.items():
         if items:
-            news_txt += f"\n[{k}]\n" + "\n".join(f"- {t}" for t in items[:3])
+            news_txt += f"\n[{k}]\n" + "\n".join(f"- {t}" for t in items[:2])
     prompt = (
         "Kamu analis pasar saham Indonesia. Dari HEADLINE berita terbaru di bawah, buat penilaian horizon ~100 hari.\n"
         "Balas HANYA JSON valid (tanpa teks lain) dengan bentuk:\n"
         '{"narrative":{"global_fed":"..","geopolitik":"..","indonesia":"..","komoditas":".."},'
-        '"outlook":{"TICKER":{"char":"bullish|netral|hati-hati|campuran","note":"<=140 char alasan berbasis berita"}}}\n'
+        '"outlook":{"TICKER":{"char":"bullish|netral|hati-hati|campuran","note":"<=80 char"}}}\n'
         "Aturan: narrative tiap poin 1-2 kalimat Bahasa Indonesia. Untuk outlook, nilai TIAP ticker berikut; "
         "jika tak ada dasar berita untuk sebuah ticker, JANGAN sertakan ticker itu.\n"
         f"TICKER: {', '.join(universe)}\n"
-        f"TEMA per ticker: {_json.dumps(theme_map, ensure_ascii=False)}\n"
         f"HEADLINE:{news_txt}\n"
     )
     body = _json.dumps({"contents": [{"parts": [{"text": prompt}]}],
@@ -872,7 +877,7 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
         for attempt in range(3):                    # retry 429/503 dgn backoff
             try:
                 req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-                with urllib.request.urlopen(req, timeout=90) as r:
+                with urllib.request.urlopen(req, timeout=70) as r:
                     resp = _json.loads(r.read())
                 txt = resp["candidates"][0]["content"]["parts"][0]["text"]
                 data = _json.loads(txt)
@@ -896,6 +901,13 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
                     print(f"  (Gemini {e.code} @ {mdl}, tunggu {wait:.0f}s...)")
                     _time.sleep(wait); continue
                 break                               # 4xx / habis retry -> model berikutnya
+            except (TimeoutError, _uerr.URLError, OSError) as e:
+                last_err = f"timeout/koneksi @ {mdl}: {e}"
+                if attempt < 2:                     # timeout -> retry model yg sama
+                    wait = 4 + _random.uniform(0, 2)
+                    print(f"  (Gemini timeout @ {mdl}, coba lagi {wait:.0f}s...)")
+                    _time.sleep(wait); continue
+                break                               # habis retry -> model berikutnya
             except Exception as e:
                 last_err = str(e); break
     print("  (Gemini gagal semua model, pakai snapshot):", last_err)
