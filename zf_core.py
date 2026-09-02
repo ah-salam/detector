@@ -83,7 +83,7 @@ CONFIG = {
     "max_price": None,   # filter harga dinonaktifkan (None = tampilkan semua)
 
     "hanya_syariah_ok": False,
-    "gemini_models": ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-flash-latest"],  # dicoba berurutan; Flash-Lite = kuota gratis terbesar
+    "gemini_models": ["gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash-lite"],  # cadangan; deteksi-otomatis jalan lebih dulu
     "sector_neutral": True,       # skoring z-score per sektor (apple-to-apple)
     "account_size": 100000000,    # modal (Rp) utk position sizing
     "risk_per_trade_pct": 0.01,   # risiko per trade (1% dari modal)
@@ -842,6 +842,25 @@ def fetch_news_rss(query, n=5, lang="id", country="ID"):
 def gather_news(per=2):
     return {k: fetch_news_rss(q, per) for k, q in NEWS_QUERIES.items()}
 
+def _gemini_models_available(api_key):
+    """Tanya Google: model apa yg tersedia utk key ini (dukung generateContent + flash)."""
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        with urllib.request.urlopen(url, timeout=15) as r:
+            data = _json.loads(r.read())
+        out = []
+        for m in data.get("models", []):
+            name = m.get("name", "").replace("models/", "")
+            methods = m.get("supportedGenerationMethods", []) or []
+            if "generateContent" in methods and "flash" in name.lower() \
+               and all(x not in name.lower() for x in ("vision", "image", "tts", "live", "thinking")):
+                out.append(name)
+        out.sort(key=lambda n: (0 if "lite" in n.lower() else 1, len(n)))
+        return out[:4]
+    except Exception as e:
+        print("  (list model Gemini gagal:", e, ")")
+        return []
+
 def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
     """Gemini menyusun narasi + outlook per saham (JSON). Return (narrative, outlook) atau (None, None)."""
     api_key = api_key or _os.environ.get("GEMINI_API_KEY")
@@ -850,9 +869,15 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
     if model:
         models = [model]
     else:
-        models = (CONFIG.get("gemini_models") if "CONFIG" in globals() else None) or \
-                 ([CONFIG.get("gemini_model")] if ("CONFIG" in globals() and CONFIG.get("gemini_model")) else None) or \
-                 ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-flash-latest"]
+        disc = _gemini_models_available(api_key)          # model yg benar2 tersedia utk key ini
+        cfg = (CONFIG.get("gemini_models") if "CONFIG" in globals() else None) or \
+              ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-flash-latest"]
+        models = []
+        for m in (disc + cfg):                            # deteksi dulu, lalu cadangan (dedupe)
+            if m and m not in models:
+                models.append(m)
+        if disc:
+            print("  (Gemini model tersedia:", ", ".join(disc), ")")
     news_txt = ""
     for k, items in news.items():
         if items:
@@ -868,7 +893,8 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
         f"HEADLINE:{news_txt}\n"
     )
     body = _json.dumps({"contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"temperature": 0.3, "response_mime_type": "application/json"}}).encode()
+                        "generationConfig": {"temperature": 0.3, "response_mime_type": "application/json",
+                                            "thinkingConfig": {"thinkingBudget": 0}}}).encode()
     import time as _time, random as _random, urllib.error as _uerr
     last_err = ""
     for mdl in models:                              # coba tiap model sampai ada yg berhasil
@@ -894,11 +920,16 @@ def gemini_outlook(news, universe, theme_map, api_key=None, model=None):
                     return narrative, outlook
                 return None, None
             except _uerr.HTTPError as e:
+                try:
+                    _body = e.read().decode()[:160]
+                except Exception:
+                    _body = ""
                 last_err = f"HTTP {e.code} @ {mdl}"
                 if e.code in (429, 503) and attempt < 2:
                     wait = (2 ** attempt) * 5 + _random.uniform(0, 2)
                     print(f"  (Gemini {e.code} @ {mdl}, tunggu {wait:.0f}s...)")
                     _time.sleep(wait); continue
+                print(f"  (Gemini {e.code} @ {mdl}: {_body})")   # alasan model gagal
                 break                               # 4xx / habis retry -> model berikutnya
             except (TimeoutError, _uerr.URLError, OSError) as e:
                 last_err = f"timeout/koneksi @ {mdl}: {e}"
