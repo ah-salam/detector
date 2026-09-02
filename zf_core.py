@@ -9,11 +9,10 @@ import yfinance as yf
 # ======================================================================
 CONFIG = {
     "universe": [
-        # === Watchlist Bibit MASTER (28 Agu 2026) — 32 saham syariah ===
-        "ADMR", "ADRO", "AKRA", "ANTM", "ARCI", "BACH", "BOLT", "BRMS",
-        "BULL", "BUMI", "CTRA", "DMAS", "DRMA", "DSSA", "ELSA", "HRTA",
-        "IATA", "JPFA", "KOTA", "LSIP", "MAPA", "MBMA", "MDIA", "MEDC",
-        "PGAS", "PSAB", "SIDO", "SMDR", "SMMT", "TPIA", "VISI", "VKTR",
+        # === Watchlist CSV Stockbit (final) — 23 saham syariah ===
+        "ADMR", "AKRA", "ARCI", "BACH", "BOLT", "BRMS", "BULL", "BUMI",
+        "DRMA", "DSNG", "DSSA", "ELSA", "HRTA", "IATA", "JSMR", "KLBF",
+        "LSIP", "MBMA", "MEDC", "PGAS", "PSAB", "SIDO", "SMMT",
     ],
 
     # Bobot faktor fundamental (basis skor 0-100 sebelum tilt makro)
@@ -1161,7 +1160,6 @@ def _charts_section(config):
         return ""
     specs = [("Emas \u00b7 XAU/USD", "OANDA:XAUUSD"),
              ("Perak \u00b7 XAG/USD", "OANDA:XAGUSD"),
-             ("Nikel \u00b7 MCX", "MCX:NICKEL1!"),
              ("Minyak Brent", "TVC:UKOIL")]
     cards = ""
     for label, sym in specs:
